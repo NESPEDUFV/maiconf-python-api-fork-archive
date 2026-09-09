@@ -1,9 +1,65 @@
 services:
-  nlp-api:
+  ia-api:
     build: .
     container_name: api-extracao-aspectos
     ports:
       - "5000:5000"
     environment:
       - PYTHONUNBUFFERED=1
+      - AWS_REDIS_HOST=${AWS_REDIS_HOST:-mmc-redis}
+      - AWS_REDIS_PORT=${AWS_REDIS_PORT:-6379}
+      - SSL=${SSL:-false}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY}
+      - DASHBOARD_WEBHOOK_URL=${DASHBOARD_WEBHOOK_URL}
+      - IA_WEBHOOK_SECRET=${IA_WEBHOOK_SECRET}
+      - IA_WEBHOOK_RETRY_DELAY_MS=${IA_WEBHOOK_RETRY_DELAY_MS}
+    networks:
+      - mymobiconf-dev-network
     restart: always
+
+  # Worker da fila `extrator_atividades`. Não carrega os modelos de aspectos,
+  # então pode escalar (docker compose up --scale worker-extrator-atividades=N)
+  # sem duplicar RAM de modelo nenhuma.
+  worker-extrator-atividades:
+    build: .
+    container_name: ia-worker-extrator-atividades
+    command: ["python", "worker.py", "extrator_atividades"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AWS_REDIS_HOST=${AWS_REDIS_HOST:-mmc-redis}
+      - AWS_REDIS_PORT=${AWS_REDIS_PORT:-6379}
+      - SSL=${SSL:-false}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_VISION_API_KEY=${GOOGLE_VISION_API_KEY}
+      - DASHBOARD_WEBHOOK_URL=${DASHBOARD_WEBHOOK_URL}
+      - IA_WEBHOOK_SECRET=${IA_WEBHOOK_SECRET}
+      - IA_WEBHOOK_RETRY_DELAY_MS=${IA_WEBHOOK_RETRY_DELAY_MS}
+    networks:
+      - mymobiconf-dev-network
+    restart: always
+
+  # Worker da fila `notifications_egress` — mesmo nome de fila usado pelo
+  # maiconfpayment para a entrega assinada de webhooks.
+  worker-notifications-egress:
+    build: .
+    container_name: ia-worker-notifications-egress
+    command: ["python", "worker.py", "notifications_egress"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AWS_REDIS_HOST=${AWS_REDIS_HOST:-mmc-redis}
+      - AWS_REDIS_PORT=${AWS_REDIS_PORT:-6379}
+      - SSL=${SSL:-false}
+      - IA_WEBHOOK_SECRET=${IA_WEBHOOK_SECRET}
+      - IA_WEBHOOK_RETRY_DELAY_MS=${IA_WEBHOOK_RETRY_DELAY_MS}
+    networks:
+      - mymobiconf-dev-network
+    restart: always
+
+networks:
+  # Mesma rede externa usada pelo docker-compose.dev.yaml / docker-compose.local.yaml
+  # do mymobiconfapi — é nela que o mmc-redis (e o mmc-api-dev) já estão.
+  # Precisa já existir (docker network create mymobiconf-dev-network) e o
+  # mymobiconfapi precisa estar de pé antes de subir este compose.
+  mymobiconf-dev-network:
+    external: true

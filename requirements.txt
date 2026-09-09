@@ -1,8 +1,22 @@
 flask==3.0.3
+gunicorn==22.0.0
+
+# capabilities/aspectos
 spacy==3.7.4
 sentence-transformers==2.7.0
 scikit-learn==1.4.2
 pandas==2.2.2
 pysentimiento==0.7.3
-gunicorn==22.0.0
 
+# capabilities/extrator_atividades
+google-generativeai
+beautifulsoup4
+lxml
+openpyxl
+PyMuPDF
+python-dotenv
+
+# comum: fila (RQ), notifications, chamadas HTTP
+redis
+rq
+requests

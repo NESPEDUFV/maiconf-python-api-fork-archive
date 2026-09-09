@@ -20,13 +20,15 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Pré-download do modelo do PySentimiento (Análise de Sentimentos)
 RUN python -c "from pysentimiento import create_analyzer; create_analyzer(task='sentiment', lang='pt')"
 
-# Copia o código-fonte da aplicação
-COPY app.py nlp_pipeline.py .
+# Copia o código-fonte da aplicação (mesma imagem serve a API e os workers —
+# ver docker-compose.yml, que só troca o CMD por container)
+COPY . .
 
-# Expõe a porta usada pela API Flask
 EXPOSE 5000
 
-# Executa o servidor Flask utilizando o Gunicorn para produção
-# -w 1: Utiliza 1 worker devido ao alto consumo de memória dos modelos de IA
-# --timeout 120: Tempo limite estendido para requisições de análise mais longas
+# A API mantém 1 worker gunicorn: é o processo que carrega os modelos de
+# capabilities/aspectos em memória (spaCy, SentenceTransformer, pysentimiento).
+# A extração de atividades (capabilities/extrator_atividades) roda em
+# containers de worker separados (worker.py), que não carregam esses modelos
+# e por isso escalam livremente — ver docker-compose.yml.
 CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "app:app", "--timeout", "120"]
