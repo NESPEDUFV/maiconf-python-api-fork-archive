@@ -1,0 +1,49 @@
+name: 🚀 Publicar aplicação em Desenvolvimento
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: general
+
+    steps:
+      - name: Atualiza código da aplicação
+        uses: actions/checkout@v4
+
+      - name: Remove aplicação anterior do Docker
+        run: |
+          for container in maiconf-python-api ia-worker-extrator-atividades ia-worker-notifications-egress; do
+            docker container inspect "$container" >/dev/null 2>&1 && docker container stop "$container" || echo "Container $container não está em execução"
+            docker container inspect "$container" >/dev/null 2>&1 && docker container rm "$container" || echo "Container $container não existe"
+          done
+
+          for image in maiconf-python-api-ia-api maiconf-python-api-worker-extrator-atividades maiconf-python-api-worker-notifications-egress; do
+            docker image inspect "$image" >/dev/null 2>&1 && docker image rm "$image" || echo "Imagem $image não existe"
+          done
+
+      - name: Cria e enriquece .env
+        run: |
+          echo 'SSL=${{ vars.SSL }}' >> .env
+          echo 'AWS_REDIS_HOST=${{ vars.AWS_REDIS_HOST }}' >> .env
+          echo 'AWS_REDIS_PORT=${{ vars.AWS_REDIS_PORT }}' >> .env
+
+          echo 'GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}' >> .env
+          echo 'GOOGLE_VISION_API_KEY=${{ secrets.GOOGLE_VISION_API_KEY }}' >> .env
+
+          echo 'DASHBOARD_WEBHOOK_URL=${{ vars.DASHBOARD_WEBHOOK_URL }}' >> .env
+          echo 'IA_WEBHOOK_SECRET=${{ secrets.IA_WEBHOOK_SECRET }}' >> .env
+          echo 'IA_WEBHOOK_RETRY_DELAY_MS=${{ vars.IA_WEBHOOK_RETRY_DELAY_MS }}' >> .env
+
+      - name: Garante rede compartilhada com o mymobiconfapi
+        run: |
+          docker network inspect mymobiconf-dev-network >/dev/null 2>&1 || docker network create mymobiconf-dev-network
+
+      - name: Executa Docker Compose
+        run: |
+          docker compose up -d --build
