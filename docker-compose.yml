@@ -1,7 +1,7 @@
 services:
   ia-api:
     build: .
-    container_name: api-extracao-aspectos
+    container_name: maiconf-python-api
     ports:
       - "5000:5000"
     environment:
